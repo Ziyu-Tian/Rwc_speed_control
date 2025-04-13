@@ -180,8 +180,6 @@ output/*
 *.filters
 *.user
 *.vcxproj
-# TXT
-*.txt 
 # CSV
 *.csv
 *.xlsx
