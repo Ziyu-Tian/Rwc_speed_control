@@ -48,23 +48,23 @@ int main()
     // // In a default system, printf will also output via the default UART
     
 
-    // int nack_count = 0;
+    int nack_count = 0;
 
-    // for (uint8_t addr = 0x08; addr <= 0x77; addr++) {
-    //     uint8_t dummy = 0;
-    //     int result = i2c_write_timeout_us(I2C_PORT, addr, &dummy, 1, false, 1000);
-    //     if (result < 0) {
-    //         nack_count++;
-    //     } else {
-    //         printf("✅ Unexpected device found at 0x%02X\n", addr);
-    //     }
-    // }
+    for (uint8_t addr = 0x08; addr <= 0x77; addr++) {
+        uint8_t dummy = 0;
+        int result = i2c_write_timeout_us(I2C_PORT, addr, &dummy, 1, false, 1000);
+        if (result < 0) {
+            nack_count++;
+        } else {
+            printf("✅ Unexpected device found at 0x%02X\n", addr);
+        }
+    }
 
-    // if (nack_count == (0x77 - 0x08 + 1)) {
-    //     printf("✅ I2C port works! No devices found (as expected).\n");
-    // } else {
-    //     printf("⚠️ Warning: Detected devices, but none expected.\n");
-    // }
+    if (nack_count == (0x77 - 0x08 + 1)) {
+        printf("✅ I2C port works! No devices found (as expected).\n");
+    } else {
+        printf("⚠️ Warning: Detected devices, but none expected.\n");
+    }
     
     // For more examples of UART use see https://github.com/raspberrypi/pico-examples/tree/master/uart
 
