@@ -93,7 +93,7 @@ void write_pot(uint8_t cmd, uint8_t value)
 // Digital Pot Mapping - Int
 uint8_t map_can_to_pot_int(uint8_t value)
 {
-    return (uint8_t)value * (128.0 / 15.0); // 0 ~ 15 --> 0 ~ 255
+    return (uint8_t)value * (256.0 / 15.0); // 0 ~ 15 --> 0 ~ 255
 }
 
 
