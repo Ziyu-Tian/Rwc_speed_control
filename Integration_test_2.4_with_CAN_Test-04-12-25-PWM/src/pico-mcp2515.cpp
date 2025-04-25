@@ -18,6 +18,13 @@
 #include <cstring>
 #include <QuadratureEncoder.hpp>
 #include "hardware/adc.h"
+#include "hardware/pwm.h"
+
+//PWM Setting 
+
+#define PWM_PIN 27              
+#define PWM_FREQ_KHZ 20  
+
 
 // CAN Config
 MCP2515 can0;
@@ -64,7 +71,34 @@ void set_reverse(uint gpio, bool state) {
     gpio_put(gpio, state);     
 }
 
+// PWM Setup
+void init_pwm() {
+    gpio_set_function(PWM_PIN, GPIO_FUNC_PWM);
+    uint slice = pwm_gpio_to_slice_num(PWM_PIN);
 
+    pwm_config config = pwm_get_default_config();
+
+    // Freq
+    uint32_t clock_freq = 125000000; // f_sys
+    uint32_t pwm_top = clock_freq / (PWM_FREQ_KHZ * 1000);
+    pwm_config_set_wrap(&config, pwm_top);
+
+    pwm_init(slice, &config, true);
+}
+
+//Speed Setup
+void set_speed(uint8_t speed) {
+    
+    if (speed > 15) speed = 15;
+
+    uint8_t pwm_duty = (speed * 255) / 15;
+
+    uint slice = pwm_gpio_to_slice_num(PWM_PIN);
+    uint32_t top = pwm_hw->slice[slice].top;
+
+    uint level = (pwm_duty * top) / 255;
+    pwm_set_gpio_level(PWM_PIN, level);
+}
 
 // SPI Init Function
 void init_spi()
@@ -114,12 +148,12 @@ void send_can_data()
     if (can0.sendMessage(&tx_frame) == MCP2515::ERROR_OK)
     {
         // printf("\e[1;1H\e[2J");
-        printf("CAN Successful! ID=0x%X\n", tx_frame.can_id);
-        printf("Core 1 - RPM: %.2f\n", latest_rpm);
+        //printf("CAN Successful! ID=0x%X\n", tx_frame.can_id);
+        //printf("Core 1 - RPM: %.2f\n", latest_rpm);
     }
     else
     {
-        printf("CAN Failed!\n");
+        //printf("CAN Failed!\n");
     }
 }
 
@@ -165,7 +199,7 @@ void core0_entry()
         rpm = (rpm + rpm_2 + rpm_3);
 
         uint32_t rpm_data;
-        printf("Core 1 - RPM: %d\n", rpm);
+        //printf("Core 1 - RPM: %d\n", rpm);
         memcpy(&rpm_data, &rpm, sizeof(int));   // change to 32 bits
         multicore_fifo_push_blocking(rpm_data); // TX RPM data
 
@@ -196,15 +230,20 @@ void core1_entry()
 
             int received_int = rx.data[0];
             //memcpy(&received_int, &rx.data[0], sizeof(int));
-            printf("Received Float: %d\n", received_int);
+            printf("Received Int: %d\n", received_int);
 
             // 0 ~ 15 to 0 ~ 255
             uint8_t pot_value = received_int;//uint8_t pot_value = map_can_to_pot_int(received_int);
-            write_pot(0x12,pot_value); // Pot-2 
+            //write_pot(0x12,pot_value); // Pot-2 
+            set_speed(pot_value);
+            sleep_ms(100);
 
-            //float voltage0 = read_voltage();  // A0
-            //printf("Received: %d, Voltage Output: %.5f, Pot Output: %d\n", received_int, voltage0, pot_value);
-            printf("Received: %d, Pot Output: %d\n", received_int, pot_value);
+            //uint16_t adc_value = adc_read();
+            //float voltage = adc_value * 3.3f / (1 << 12); 
+
+            float voltage0 = read_voltage();  // A0
+            printf("Received: %d, Voltage Output: %.5f, Pot Output: %d\n", received_int, voltage0, pot_value);
+            //printf("Received: %d, Pot Output: %d\n", received_int, pot_value);
             // printf("Received: %d, Pot Output: %d\n", received_raw, received_value);
         }
 
@@ -230,6 +269,7 @@ int main()
     stdio_init_all();
     init_spi();
     adc_init();
+    init_pwm();
 
     // Initialize interface
     can0.reset();
