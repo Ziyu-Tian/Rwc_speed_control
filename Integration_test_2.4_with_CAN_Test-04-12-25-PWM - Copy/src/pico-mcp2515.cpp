@@ -20,11 +20,6 @@
 #include "hardware/adc.h"
 #include "hardware/pwm.h"
 
-//PWM Setting 
-
-#define PWM_PIN 27              
-#define PWM_FREQ_KHZ 20  
-
 
 // CAN Config
 MCP2515 can0;
@@ -32,105 +27,16 @@ struct can_frame rx;
 struct can_frame tx_frame;
 volatile uint8_t received_value = 0; // received CAN data
 
-// SPI PIN Config
-#define SPI_PORT spi0 // spi0 applied
-#define PIN_SCK 2     // SCK = GPIO2
-#define PIN_MOSI 3    // MOSI = GPIO3
-#define PIN_MISO 4    // MISO
-#define PIN_CS 8      // CS
-
 // Pin_A (Pin_B would be set as A_pin + 1)
 #define A_pin 23  // Noted that A and B should be swapped in physical connection
 #define A2_pin 21 // 12
 #define A3_pin 19 //
 #define ppr 600.0 // PPR
-#define sampling_time 10e-3 // Sampling Time for Speed Calculation
-
-#define IGNITION_PIN 25
-
+#define sampling_time 7e-3 // Sampling Time for Speed Calculation -10ms
 int latest_rpm = 0;                  // Global latest_rpm
 bool new_rpm_available = false;      // new_rpm_calculated_flag
 volatile bool can_send_flag = false; // can_send_flag
 
-//Ignition Setting
-void set_ignition(uint gpio, bool state) {
-    gpio_init(gpio);             
-    gpio_set_dir(gpio, GPIO_OUT); 
-    gpio_put(gpio, state);     
-}
-
-//Parking Brake Setting
-void set_brake(uint gpio, bool state) {
-    gpio_init(gpio);             
-    gpio_set_dir(gpio, GPIO_OUT); 
-    gpio_put(gpio, state);     
-}
-
-//Reverse Setting
-void set_reverse(uint gpio, bool state) {
-    gpio_init(gpio);             
-    gpio_set_dir(gpio, GPIO_OUT); 
-    gpio_put(gpio, state);     
-}
-
-// PWM Setup
-void init_pwm() {
-    gpio_set_function(PWM_PIN, GPIO_FUNC_PWM);
-    uint slice = pwm_gpio_to_slice_num(PWM_PIN);
-
-    pwm_config config = pwm_get_default_config();
-
-    // Freq
-    uint32_t clock_freq = 125000000; // f_sys
-    uint32_t pwm_top = clock_freq / (PWM_FREQ_KHZ * 1000);
-    pwm_config_set_wrap(&config, pwm_top);
-
-    pwm_init(slice, &config, true);
-}
-
-//Speed Setup
-void set_speed(uint8_t speed) {
-    
-    if (speed > 255) speed = 255;
-
-    uint8_t pwm_duty = (speed * 255) / 255;
-
-    uint slice = pwm_gpio_to_slice_num(PWM_PIN);
-    uint32_t top = pwm_hw->slice[slice].top;
-
-    uint level = (pwm_duty * top) / 255;
-    pwm_set_gpio_level(PWM_PIN, level);
-}
-
-// SPI Init Function
-void init_spi()
-{
-    spi_init(SPI_PORT, 1000 * 1000); // 1Mhz SPI
-    gpio_set_function(PIN_SCK, GPIO_FUNC_SPI);
-    gpio_set_function(PIN_MOSI, GPIO_FUNC_SPI);
-    gpio_set_function(PIN_MISO, GPIO_FUNC_SPI);
-
-    gpio_init(PIN_CS);
-    gpio_set_dir(PIN_CS, GPIO_OUT);
-    gpio_put(PIN_CS, 1); // Unselect chip
-}
-
-// Sending SPI cmd + data to Digital Pot-0
-void write_pot(uint8_t cmd, uint8_t value)
-{
-    uint8_t data[2] = {cmd, value};
-
-    gpio_put(PIN_CS, 0); // Select chip, start sending data
-    spi_write_blocking(SPI_PORT, data, 2);
-    gpio_put(PIN_CS, 1); // Unselect chip, end data sending
-    sleep_ms(10);
-}
-
-// Digital Pot Mapping - Int
-uint8_t map_can_to_pot_int(uint8_t value)
-{
-    return (uint8_t)value * (256.0 / 15.0); // 0 ~ 15 --> 0 ~ 255
-}
 
 
 void send_can_data()
@@ -139,19 +45,23 @@ void send_can_data()
     tx_frame.can_id = 0x126; // TX CAN ID
     tx_frame.can_dlc = 8;    
 
-    //latest_rpm = 10;
+    //latest_rpm = latest_rpm + 1 % 400;
+
+    //uint8_t *latest_rpm_bytes = (uint8_t *)&latest_rpm;
+
+    //tx_frame.data = {latest_rpm_bytes[0], latest_rpm_bytes[1], latest_rpm_bytes[2], latest_rpm_bytes[4]};
 
     memset(tx_frame.data, 0, sizeof(tx_frame.data)); 
 
 
-    memcpy(tx_frame.data, &latest_rpm, sizeof(float)); 
+    memcpy(tx_frame.data, &latest_rpm, sizeof(int)); 
 
     // Send Message
     if (can0.sendMessage(&tx_frame) == MCP2515::ERROR_OK)
     {
-        // printf("\e[1;1H\e[2J");
-        //printf("CAN Successful! ID=0x%X\n", tx_frame.can_id);
-        //printf("Core 1 - RPM: %.2f\n", latest_rpm);
+        printf("\e[1;1H\e[2J");
+        printf("CAN Successful! ID=0x%X\n", tx_frame.can_id);
+        printf("Core 1 - RPM: %d\n", latest_rpm);
     }
     else
     {
@@ -198,7 +108,7 @@ void core0_entry()
         int rpm_2 = (30 * velocity_2) / M_PI;
         int rpm_3 = (30 * velocity_3) / M_PI;
         
-        rpm = (rpm + rpm_2 + rpm_3);
+        rpm = (rpm + rpm_2 + rpm_3)/2;
 
         uint32_t rpm_data;
         //printf("Core 1 - RPM: %d\n", rpm);
@@ -209,45 +119,11 @@ void core0_entry()
     }
 }
 
-float read_voltage()
-{
-    adc_select_input(0);       // GPIO26
-    uint16_t raw = adc_read(); // 0-4095
-    return raw * 3.3f / 4095.0f;
-}
 
 void core1_entry()
 {
     while (true)
     {
-        if (can0.readMessage(&rx) == MCP2515::ERROR_OK)
-        {
-            // CAN Data (0-15)
-            printf("Raw CAN Data: ");
-            for (int i = 0; i < rx.can_dlc; i++)
-            {
-                printf("%02X ", rx.data[i]); // Print each bytes
-            }
-            printf("\n");
-
-            int received_int = rx.data[0];
-            //memcpy(&received_int, &rx.data[0], sizeof(int));
-            printf("Received Int: %d\n", received_int);
-
-            // 0 ~ 15 to 0 ~ 255
-            uint8_t pot_value = received_int;//uint8_t pot_value = map_can_to_pot_int(received_int);
-            //write_pot(0x12,pot_value); // Pot-2 
-            set_speed(pot_value);
-            sleep_ms(100);
-
-            //uint16_t adc_value = adc_read();
-            //float voltage = adc_value * 3.3f / (1 << 12); 
-
-            //float voltage0 = read_voltage();  // A0
-            //printf("Received: %d, Voltage Output: %.5f, Pot Output: %d\n", received_int, voltage0, pot_value);
-            //printf("Received: %d, Pot Output: %d\n", received_int, pot_value);
-            // printf("Received: %d, Pot Output: %d\n", received_raw, received_value);
-        }
 
         if (multicore_fifo_rvalid())
         {
@@ -269,11 +145,7 @@ void core1_entry()
 int main()
 {
     stdio_init_all();
-    init_spi();
-    adc_init();
-    init_pwm();
 
-    set_ignition(IGNITION_PIN,1);
     // Initialize interface
     can0.reset();
     can0.setBitrate(CAN_50KBPS, MCP_16MHZ);
