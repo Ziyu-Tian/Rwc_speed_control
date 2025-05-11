@@ -148,7 +148,7 @@ output/*
 *.user
 *.vcxproj
 # TXT
-*.txt 
+#*.txt 
 # CSV
 *.csv
 *.xlsx
