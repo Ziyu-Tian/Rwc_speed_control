@@ -32,7 +32,7 @@ volatile uint8_t received_value = 0; // received CAN data
 #define A2_pin 21 // 12
 #define A3_pin 19 //
 #define ppr 600.0 // PPR
-#define sampling_time 7e-3 // Sampling Time for Speed Calculation -10ms
+#define sampling_time 10e-3 // Sampling Time for Speed Calculation -10ms
 int latest_rpm = 0;                  // Global latest_rpm
 bool new_rpm_available = false;      // new_rpm_calculated_flag
 volatile bool can_send_flag = false; // can_send_flag
@@ -79,14 +79,14 @@ void core0_entry()
 {
     // Initialize PIO_Encoder Class
     QuadratureEncoder encoder(pio1, A_pin, ppr);
-    QuadratureEncoder encoder_2(pio0, A2_pin, ppr);
-    QuadratureEncoder encoder_3(pio1, A3_pin, ppr);
+    // QuadratureEncoder encoder_2(pio0, A2_pin, ppr);
+    // QuadratureEncoder encoder_3(pio1, A3_pin, ppr);
 
     while (true)
     {
         encoder.update(sampling_time); // Initialize starting time
-        encoder_2.update(sampling_time); // Initialize starting time 
-        encoder_3.update(sampling_time); // Initialize starting time 
+        // encoder_2.update(sampling_time); // Initialize starting time 
+        // encoder_3.update(sampling_time); // Initialize starting time 
 
         // Position: return angle (default radium)
         // Velocity: return velocity in rad/s
@@ -95,20 +95,20 @@ void core0_entry()
         auto velocity = encoder.get_velocity();
         auto counter = encoder.get_count();
 
-        auto position_2 = encoder_2.get_position();
-        auto velocity_2 = encoder_2.get_velocity();
-        auto counter_2 = encoder_2.get_count();
+        // auto position_2 = encoder_2.get_position();
+        // auto velocity_2 = encoder_2.get_velocity();
+        // auto counter_2 = encoder_2.get_count();
 
-        auto position_3 = encoder_3.get_position();
-        auto velocity_3 = encoder_3.get_velocity();
-        auto counter_3  = encoder_3.get_count();
+        // auto position_3 = encoder_3.get_position();
+        // auto velocity_3 = encoder_3.get_velocity();
+        // auto counter_3  = encoder_3.get_count();
 
         int rpm = (30 * velocity) / M_PI;
         
-        int rpm_2 = (30 * velocity_2) / M_PI;
-        int rpm_3 = (30 * velocity_3) / M_PI;
+        // int rpm_2 = (30 * velocity_2) / M_PI;
+        // int rpm_3 = (30 * velocity_3) / M_PI;
         
-        rpm = (rpm + rpm_2 + rpm_3)/2;
+        // rpm = (rpm + rpm_2 + rpm_3)/2;
 
         uint32_t rpm_data;
         //printf("Core 1 - RPM: %d\n", rpm);
@@ -170,7 +170,7 @@ int main()
     can0.setNormalMode();
 
     struct repeating_timer timer;
-    add_repeating_timer_ms(100, timerCallback, NULL, &timer); // 100 ms timer for CAN
+    add_repeating_timer_ms(60, timerCallback, NULL, &timer); // 100 ms timer for CAN
 
     multicore_launch_core1(core1_entry); // Core-1
     core0_entry();                       // Core 0
