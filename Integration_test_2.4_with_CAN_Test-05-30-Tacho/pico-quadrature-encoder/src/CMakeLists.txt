@@ -1,0 +1,5 @@
+add_library(quadrature_encoder_pico QuadratureEncoder.cpp)
+target_include_directories(quadrature_encoder_pico PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+pico_generate_pio_header(quadrature_encoder_pico ${CMAKE_CURRENT_LIST_DIR}/quadrature_encoder.pio)
+target_link_libraries(quadrature_encoder_pico pico_stdlib hardware_pio)
+target_compile_options(quadrature_encoder_pico PRIVATE -fexceptions)
