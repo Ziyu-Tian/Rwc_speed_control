@@ -33,13 +33,13 @@ volatile uint8_t received_value = 0; // received CAN data
 // #define A2_pin 21 // 12
 // #define A3_pin 19 //
 #define ppr 8.0 // PPR
-#define sampling_time 800.0 // Sampling Time for Speed Calculation -10ms
+#define sampling_time 70.0 // Sampling Time for Speed Calculation -10ms
 int latest_rpm = 0;                  // Global latest_rpm
 bool new_rpm_available = false;      // new_rpm_calculated_flag
 volatile bool can_send_flag = false; // can_send_flag
 #define proximity_sensor_pin 23 // Tach Pin
 
-#define MEDIAN_SIZE 2
+#define MEDIAN_SIZE 4
 float median_buf[MEDIAN_SIZE] = {0};
 int median_idx = 0;
 
@@ -113,9 +113,9 @@ void core0_entry()
         // Velocity: return velocity in rad/s
         // Counter: return counting number (CW++, ACW--, 1200 per round)
         // auto position = encoder.get_position();
-        auto velocity = encoder.get_velocity();
-        auto counter = encoder.get_count();
-        auto last_count = encoder.get_last_count();
+        float velocity = encoder.get_velocity();
+        //auto counter = encoder.get_count();
+        //auto last_count = encoder.get_last_count();
 
         // auto position_2 = encoder_2.get_position();
         // auto velocity_2 = encoder_2.get_velocity();
@@ -135,7 +135,7 @@ void core0_entry()
 
         uint32_t rpm_data;
         //printf("Core 1 - RPM: %d\n", rpm);
-        memcpy(&rpm_data, &rpm, sizeof(int));   // change to 32 bits
+        memcpy(&rpm_data, &rpm_smoothed, sizeof(int));   // change to 32 bits
         multicore_fifo_push_blocking(rpm_data); // TX RPM data
 
         // printf("Velocity: %.2f ",velocity);
@@ -155,7 +155,7 @@ void core0_entry()
         //     last_state = current_state;
         // }
 
-        sleep_ms(10); // Send frequency
+        //sleep_ms(10); // Send frequency
     }
 }
 
